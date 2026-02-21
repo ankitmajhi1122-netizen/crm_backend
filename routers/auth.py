@@ -235,7 +235,8 @@ def reset_password(body: ResetPasswordBody, current_user: dict = Depends(get_cur
         if not body.currentPassword or not pwd_ctx.verify(pw_input, pw_hash):
             raise HTTPException(status_code=400, detail="Current password is incorrect")
 
-    new_hash = pwd_ctx.hash(body.newPassword)
+    pw_input_new = get_password_hash_input(body.newPassword)
+    new_hash = pwd_ctx.hash(pw_input_new)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -254,7 +255,8 @@ def admin_reset_password(body: AdminResetBody, current_user: dict = Depends(get_
     if current_user["role"] not in ("ADMIN",):
         raise HTTPException(status_code=403, detail="Admin role required")
 
-    new_hash = pwd_ctx.hash(body.newPassword)
+    pw_input_new = get_password_hash_input(body.newPassword)
+    new_hash = pwd_ctx.hash(pw_input_new)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
