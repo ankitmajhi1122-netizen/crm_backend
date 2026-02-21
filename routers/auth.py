@@ -158,7 +158,7 @@ def signup(body: SignUpBody):
             except Exception as e:
                 conn.rollback()
                 print(f"Signup error: {e}")
-                raise HTTPException(status_code=500, detail="Failed to create account")
+                raise HTTPException(status_code=500, detail=f"Signup error: {str(e)}")
 
     user = _row_to_user(u_row)
     tenant = _row_to_tenant(t_row)
