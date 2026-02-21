@@ -162,7 +162,7 @@ def signup(body: SignUpBody):
             except Exception as e:
                 conn.rollback()
                 print(f"Signup error: {e}")
-                raise HTTPException(status_code=500, detail=f"Signup error: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"V4_ERROR: {str(e)}")
 
     user = _row_to_user(u_row)
     tenant = _row_to_tenant(t_row)
