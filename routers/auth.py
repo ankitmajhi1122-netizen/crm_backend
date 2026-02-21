@@ -11,17 +11,15 @@ import secrets
 from datetime import timedelta, datetime
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, EmailStr
-from passlib.context import CryptContext
 from jose import JWTError
 
 from db import get_conn
 from utils.jwt_utils import create_access_token, verify_access_token
 from utils.email_utils import send_password_reset_email
-from utils.auth_utils import get_password_hash_input
+from utils.auth_utils import get_password_hash_input, hash_password, verify_password
 from dependencies import get_current_user
 
 router = APIRouter()
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 
@@ -85,8 +83,7 @@ def login(body: LoginBody):
             )
             row = cur.fetchone()
 
-    pw_input = get_password_hash_input(body.password)
-    if not row or not pwd_ctx.verify(pw_input, row[4]):
+    if not row or not verify_password(body.password, row[4]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     # Check removed for simplification:
@@ -138,16 +135,8 @@ def signup(body: SignUpBody):
                 tenant_id = t_row[0]
 
                 # Create Admin User
-                # Pre-hash to bypass bcrypt 72-byte limit
-                print(f"DEBUG: Signup original password length: {len(body.password)}")
-                pw_input = get_password_hash_input(body.password)
-                print(f"DEBUG: Signup hashing input length: {len(pw_input)}")
-                print(f"DEBUG: Signup hashing input (first 10): {pw_input[:10]}")
-                try:
-                    pw_hash = pwd_ctx.hash(pw_input)
-                except Exception as hash_err:
-                    print(f"DEBUG: pwd_ctx.hash FAILED: {type(hash_err).__name__}: {hash_err}")
-                    raise hash_err
+                # Direct bcrypt hashing handles its own SHA256 pre-hashing now
+                pw_hash = hash_password(body.password)
                 cur.execute(
                     "INSERT INTO users (tenant_id, name, email, password_hash, role, status) "
                     "VALUES (%s, %s, %s, %s, 'ADMIN', 'active') "
@@ -169,7 +158,7 @@ def signup(body: SignUpBody):
             except Exception as e:
                 conn.rollback()
                 print(f"Signup error: {e}")
-                raise HTTPException(status_code=500, detail=f"V5_DEPLOY_CHECK: {type(e).__name__}: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
 
     user = _row_to_user(u_row)
     tenant = _row_to_tenant(t_row)
@@ -238,12 +227,10 @@ def reset_password(body: ResetPasswordBody, current_user: dict = Depends(get_cur
     # If force-reset (admin set temp password), skip currentPassword check.
     # Otherwise verify currentPassword.
     if not must_reset:
-        pw_input = get_password_hash_input(body.currentPassword)
-        if not body.currentPassword or not pwd_ctx.verify(pw_input, pw_hash):
+        if not body.currentPassword or not verify_password(body.currentPassword, pw_hash):
             raise HTTPException(status_code=400, detail="Current password is incorrect")
 
-    pw_input_new = get_password_hash_input(body.newPassword)
-    new_hash = pwd_ctx.hash(pw_input_new)
+    new_hash = hash_password(body.newPassword)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
