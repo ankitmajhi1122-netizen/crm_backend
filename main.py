@@ -11,6 +11,22 @@ load_dotenv()
 
 from routers import auth, users, tenants, plans, leads, contacts, accounts, deals, tasks, campaigns, products, quotes, invoices, orders
 
+from contextlib import asynccontextmanager
+from db import run_schema
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Apply schema on startup
+    try:
+        print("🚀 Applying database schema...")
+        run_schema()
+        print("✅ Database schema applied.")
+    except Exception as e:
+        print(f"❌ Failed to apply schema on startup: {e}")
+        # We don't raise here to allow the app to start even if DB is temporarily down,
+        # but the first request will fail if tables are missing.
+    yield
+
 app = FastAPI(
     title="CRM API",
     description="Backend REST API for the Frontend CRM application",
@@ -18,6 +34,7 @@ app = FastAPI(
     docs_url="/api/v1/docs",
     redoc_url="/api/v1/redoc",
     openapi_url="/api/v1/openapi.json",
+    lifespan=lifespan,
 )
 
 # ─── CORS ────────────────────────────────────────────────────────────────────
