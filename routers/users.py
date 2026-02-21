@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from typing import Optional
 from passlib.context import CryptContext
 from db import get_conn
+from utils.auth_utils import get_password_hash_input
 from dependencies import get_current_user
 from utils.email_utils import send_welcome_email
 import os
@@ -85,9 +86,8 @@ def get_user(user_id: str, current_user: dict = Depends(get_current_user)):
 def create_user(body: CreateUserBody, current_user: dict = Depends(get_current_user)):
     if current_user["role"] not in ("ADMIN",):
         raise HTTPException(status_code=403, detail="Admin role required")
-    # Truncate to 72 bytes for bcrypt compatibility
-    safe_password = body.password.encode('utf-8')[:72].decode('utf-8', 'ignore')
-    pw_hash = pwd_ctx.hash(safe_password)
+    pw_input = get_password_hash_input(body.password)
+    pw_hash = pwd_ctx.hash(pw_input)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -170,11 +170,11 @@ def change_password(user_id: str, body: ChangePasswordBody, current_user: dict =
             row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
-    # Truncate to 72 bytes for bcrypt compatibility
-    safe_current = body.currentPassword.encode('utf-8')[:72].decode('utf-8', 'ignore')
-    if not pwd_ctx.verify(safe_current, row[0]):
+    pw_input_curr = get_password_hash_input(body.currentPassword)
+    if not pwd_ctx.verify(pw_input_curr, row[0]):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
-    pw_hash = pwd_ctx.hash(body.newPassword)
+    pw_input_new = get_password_hash_input(body.newPassword)
+    pw_hash = pwd_ctx.hash(pw_input_new)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(

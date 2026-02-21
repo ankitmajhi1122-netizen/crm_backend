@@ -17,6 +17,7 @@ from jose import JWTError
 from db import get_conn
 from utils.jwt_utils import create_access_token, verify_access_token
 from utils.email_utils import send_password_reset_email
+from utils.auth_utils import get_password_hash_input
 from dependencies import get_current_user
 
 router = APIRouter()
@@ -84,9 +85,8 @@ def login(body: LoginBody):
             )
             row = cur.fetchone()
 
-    # Truncate to 72 bytes for bcrypt compatibility
-    safe_password = body.password.encode('utf-8')[:72].decode('utf-8', 'ignore')
-    if not row or not pwd_ctx.verify(safe_password, row[4]):
+    pw_input = get_password_hash_input(body.password)
+    if not row or not pwd_ctx.verify(pw_input, row[4]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     # Check removed for simplification:
@@ -138,9 +138,9 @@ def signup(body: SignUpBody):
                 tenant_id = t_row[0]
 
                 # Create Admin User
-                # Truncate to 72 bytes for bcrypt compatibility
-                safe_password = body.password.encode('utf-8')[:72].decode('utf-8', 'ignore')
-                pw_hash = pwd_ctx.hash(safe_password)
+                # Pre-hash to bypass bcrypt 72-byte limit
+                pw_input = get_password_hash_input(body.password)
+                pw_hash = pwd_ctx.hash(pw_input)
                 cur.execute(
                     "INSERT INTO users (tenant_id, name, email, password_hash, role, status) "
                     "VALUES (%s, %s, %s, %s, 'ADMIN', 'active') "
@@ -162,7 +162,7 @@ def signup(body: SignUpBody):
             except Exception as e:
                 conn.rollback()
                 print(f"Signup error: {e}")
-                raise HTTPException(status_code=500, detail=f"V4_ERROR: {str(e)}")
+                raise HTTPException(status_code=500, detail="Failed to create account")
 
     user = _row_to_user(u_row)
     tenant = _row_to_tenant(t_row)
@@ -231,8 +231,8 @@ def reset_password(body: ResetPasswordBody, current_user: dict = Depends(get_cur
     # If force-reset (admin set temp password), skip currentPassword check.
     # Otherwise verify currentPassword.
     if not must_reset:
-        safe_current = body.currentPassword.encode('utf-8')[:72].decode('utf-8', 'ignore')
-        if not body.currentPassword or not pwd_ctx.verify(safe_current, pw_hash):
+        pw_input = get_password_hash_input(body.currentPassword)
+        if not body.currentPassword or not pwd_ctx.verify(pw_input, pw_hash):
             raise HTTPException(status_code=400, detail="Current password is incorrect")
 
     new_hash = pwd_ctx.hash(body.newPassword)
