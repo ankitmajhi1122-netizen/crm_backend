@@ -147,7 +147,8 @@ def delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
 def admin_reset_password(user_id: str, body: ResetPasswordBody, current_user: dict = Depends(get_current_user)):
     if current_user["role"] != "ADMIN":
         raise HTTPException(status_code=403, detail="Admin role required")
-    pw_hash = pwd_ctx.hash(body.newPassword)
+    pw_input = get_password_hash_input(body.newPassword)
+    pw_hash = pwd_ctx.hash(pw_input)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -173,6 +174,7 @@ def change_password(user_id: str, body: ChangePasswordBody, current_user: dict =
     pw_input_curr = get_password_hash_input(body.currentPassword)
     if not pwd_ctx.verify(pw_input_curr, row[0]):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
+    pw_input_new = get_password_hash_input(body.newPassword)
     pw_input_new = get_password_hash_input(body.newPassword)
     pw_hash = pwd_ctx.hash(pw_input_new)
     with get_conn() as conn:
