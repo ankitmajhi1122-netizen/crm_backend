@@ -2,6 +2,14 @@
 main.py — FastAPI application entry point.
 Run with: uvicorn main:app --host 0.0.0.0 --port 3000 --reload
 """
+# --- Passlib/Bcrypt Monkeypatch for Python 3.13 / Bcrypt 4.0+ ---
+import bcrypt
+if not hasattr(bcrypt, "__about__"):
+    class About:
+        __version__ = getattr(bcrypt, "__version__", "4.0.0")
+    print("🔧 Monkeypatching bcrypt.__about__ for passlib compatibility")
+    bcrypt.__about__ = About()
+# -------------------------------------------------------------
 import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
