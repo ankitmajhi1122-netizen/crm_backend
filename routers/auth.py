@@ -139,8 +139,15 @@ def signup(body: SignUpBody):
 
                 # Create Admin User
                 # Pre-hash to bypass bcrypt 72-byte limit
+                print(f"DEBUG: Signup original password length: {len(body.password)}")
                 pw_input = get_password_hash_input(body.password)
-                pw_hash = pwd_ctx.hash(pw_input)
+                print(f"DEBUG: Signup hashing input length: {len(pw_input)}")
+                print(f"DEBUG: Signup hashing input (first 10): {pw_input[:10]}")
+                try:
+                    pw_hash = pwd_ctx.hash(pw_input)
+                except Exception as hash_err:
+                    print(f"DEBUG: pwd_ctx.hash FAILED: {type(hash_err).__name__}: {hash_err}")
+                    raise hash_err
                 cur.execute(
                     "INSERT INTO users (tenant_id, name, email, password_hash, role, status) "
                     "VALUES (%s, %s, %s, %s, 'ADMIN', 'active') "
