@@ -175,7 +175,6 @@ def change_password(user_id: str, body: ChangePasswordBody, current_user: dict =
     if not pwd_ctx.verify(pw_input_curr, row[0]):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     pw_input_new = get_password_hash_input(body.newPassword)
-    pw_input_new = get_password_hash_input(body.newPassword)
     pw_hash = pwd_ctx.hash(pw_input_new)
     with get_conn() as conn:
         with conn.cursor() as cur:
