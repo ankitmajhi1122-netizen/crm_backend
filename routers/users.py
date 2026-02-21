@@ -85,7 +85,9 @@ def get_user(user_id: str, current_user: dict = Depends(get_current_user)):
 def create_user(body: CreateUserBody, current_user: dict = Depends(get_current_user)):
     if current_user["role"] not in ("ADMIN",):
         raise HTTPException(status_code=403, detail="Admin role required")
-    pw_hash = pwd_ctx.hash(body.password)
+    # Truncate to 72 bytes for bcrypt compatibility
+    safe_password = body.password.encode('utf-8')[:72].decode('utf-8', 'ignore')
+    pw_hash = pwd_ctx.hash(safe_password)
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -168,7 +170,9 @@ def change_password(user_id: str, body: ChangePasswordBody, current_user: dict =
             row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
-    if not pwd_ctx.verify(body.currentPassword, row[0]):
+    # Truncate to 72 bytes for bcrypt compatibility
+    safe_current = body.currentPassword.encode('utf-8')[:72].decode('utf-8', 'ignore')
+    if not pwd_ctx.verify(safe_current, row[0]):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     pw_hash = pwd_ctx.hash(body.newPassword)
     with get_conn() as conn:
