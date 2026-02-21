@@ -84,7 +84,7 @@ def login(body: LoginBody):
             )
             row = cur.fetchone()
 
-    if not row or not pwd_ctx.verify(body.password, row[4]):
+    if not row or not pwd_ctx.verify(body.password[:72], row[4]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     # Check removed for simplification:
@@ -136,7 +136,9 @@ def signup(body: SignUpBody):
                 tenant_id = t_row[0]
 
                 # Create Admin User
-                pw_hash = pwd_ctx.hash(body.password)
+                # Truncate password to 72 chars for bcrypt compatibility
+                password_to_hash = body.password[:72]
+                pw_hash = pwd_ctx.hash(password_to_hash)
                 cur.execute(
                     "INSERT INTO users (tenant_id, name, email, password_hash, role, status) "
                     "VALUES (%s, %s, %s, %s, 'ADMIN', 'active') "
@@ -227,7 +229,7 @@ def reset_password(body: ResetPasswordBody, current_user: dict = Depends(get_cur
     # If force-reset (admin set temp password), skip currentPassword check.
     # Otherwise verify currentPassword.
     if not must_reset:
-        if not body.currentPassword or not pwd_ctx.verify(body.currentPassword, pw_hash):
+        if not body.currentPassword or not pwd_ctx.verify(body.currentPassword[:72], pw_hash):
             raise HTTPException(status_code=400, detail="Current password is incorrect")
 
     new_hash = pwd_ctx.hash(body.newPassword)
